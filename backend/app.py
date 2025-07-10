@@ -17,7 +17,12 @@ from notifications import notifications_bp
 from hackathons import hackathon_bp
 from chat import chat_bp
 
-app = Flask(__name__)
+app = Flask(
+    __name__,
+    static_folder="../dist",
+    static_url_path="/"
+)
+
 
 # Configure logging
 logging.basicConfig(
@@ -176,6 +181,17 @@ def handle_exception(e):
         "type": type(e).__name__,
         "timestamp": datetime.now().isoformat()
     }), 500
+
+from flask import send_from_directory
+
+@app.route("/", defaults={"path": ""})
+@app.route("/<path:path>")
+def serve_react(path):
+    if path != "" and os.path.exists(os.path.join(app.static_folder, path)):
+        return send_from_directory(app.static_folder, path)
+    else:
+        return send_from_directory(app.static_folder, "index.html")
+
 
 if __name__ == '__main__':
     logger.info("Starting Flask application...")
