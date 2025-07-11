@@ -8,17 +8,6 @@ import logging
 projects_bp = Blueprint('projects', __name__, url_prefix='/api/projects')
 logger = logging.getLogger(__name__)
 
-# Try to import ML libraries, fallback if not available
-try:
-    import pandas as pd
-    from sklearn.feature_extraction.text import TfidfVectorizer
-    from sklearn.metrics.pairwise import cosine_similarity
-    import numpy as np
-    ML_AVAILABLE = True
-except ImportError:
-    ML_AVAILABLE = False
-    logger.warning("ML libraries not available. Suggestions will use basic filtering.")
-
 @projects_bp.route('/', methods=['GET'], strict_slashes=False)
 @jwt_required()
 def get_projects():
@@ -110,131 +99,36 @@ def get_project_suggestions():
         
         limit = request.args.get('limit', 5, type=int)
         
-        # Get user's skills and roles
-        user_skills = [skill.name for skill in user.skills]
-        user_roles = [role.name for role in user.roles]
-        
-        # Get all active projects (excluding user's own projects)
-        projects = session.query(Project).filter(
+        # Get recent active projects (excluding user's own projects)
+        recent_projects = session.query(Project).filter(
             Project.is_active == True,
             Project.owner_id != user.id
-        ).all()
+        ).order_by(Project.created_at.desc()).limit(limit * 2).all()
         
-        if not projects:
+        if not recent_projects:
             return jsonify([]), 200
         
         suggestions = []
         
-        if ML_AVAILABLE and (user_skills or user_roles):
-            try:
-                # Use ML-based suggestions
-                project_features = []
-                project_data = []
-                
-                for project in projects:
-                    # Combine project skills and roles into a feature string
-                    project_skills = [skill.name for skill in project.skills]
-                    project_roles = [role.name for role in project.roles]
-                    features = ' '.join(project_skills + project_roles + [project.name, project.description or ''])
-                    project_features.append(features)
-                    project_data.append(project)
-                
-                # Create user feature vector
-                user_features = ' '.join(user_skills + user_roles)
-                
-                # Use TF-IDF to vectorize features
-                vectorizer = TfidfVectorizer(stop_words='english', max_features=1000)
-                all_features = [user_features] + project_features
-                tfidf_matrix = vectorizer.fit_transform(all_features)
-                
-                # Calculate cosine similarity between user and projects
-                user_vector = tfidf_matrix[0:1]
-                project_vectors = tfidf_matrix[1:]
-                similarities = cosine_similarity(user_vector, project_vectors).flatten()
-                
-                # Create suggestions with scores
-                for i, project in enumerate(project_data):
-                    match_score = int(similarities[i] * 100)
-                    if match_score > 10:  # Only include projects with some relevance
-                        suggestions.append({
-                            "id": project.id,
-                            "name": project.name,
-                            "description": project.description,
-                            "match_score": match_score,
-                            "skills": [{"id": skill.id, "name": skill.name} for skill in project.skills],
-                            "owner": {
-                                "id": project.owner.id,
-                                "username": project.owner.username,
-                                "full_name": project.owner.full_name
-                            }
-                        })
-                
-                # Sort by match score and limit results
-                suggestions.sort(key=lambda x: x['match_score'], reverse=True)
-                suggestions = suggestions[:limit]
-                
-            except Exception as e:
-                logger.error(f"ML suggestion failed: {str(e)}")
-                # Fall back to basic suggestions
-                suggestions = []
-        
-        # If ML failed or no user skills, use basic filtering
-        if not suggestions:
-            # Basic filtering by skills/roles or recent projects
-            if user_skills or user_roles:
-                user_skill_names = set(user_skills)
-                user_role_names = set(user_roles)
-                
-                for project in projects[:limit * 2]:  # Get more to filter
-                    project_skills = set(skill.name for skill in project.skills)
-                    project_roles = set(role.name for role in project.roles)
-                    
-                    # Calculate basic match score
-                    skill_matches = len(user_skill_names.intersection(project_skills))
-                    role_matches = len(user_role_names.intersection(project_roles))
-                    total_user_items = len(user_skill_names) + len(user_role_names)
-                    
-                    if total_user_items > 0:
-                        match_score = int(((skill_matches + role_matches) / total_user_items) * 100)
-                    else:
-                        match_score = 25  # Default score
-                    
-                    if match_score > 15 or (skill_matches > 0 or role_matches > 0):
-                        suggestions.append({
-                            "id": project.id,
-                            "name": project.name,
-                            "description": project.description,
-                            "match_score": max(match_score, 20),
-                            "skills": [{"id": skill.id, "name": skill.name} for skill in project.skills],
-                            "owner": {
-                                "id": project.owner.id,
-                                "username": project.owner.username,
-                                "full_name": project.owner.full_name
-                            }
-                        })
-                
-                suggestions.sort(key=lambda x: x['match_score'], reverse=True)
-                suggestions = suggestions[:limit]
-            else:
-                # Return recent projects if user has no skills/roles
-                for project in projects[:limit]:
-                    suggestions.append({
-                        "id": project.id,
-                        "name": project.name,
-                        "description": project.description,
-                        "match_score": 30,  # Default score
-                        "skills": [{"id": skill.id, "name": skill.name} for skill in project.skills],
-                        "owner": {
-                            "id": project.owner.id,
-                            "username": project.owner.username,
-                            "full_name": project.owner.full_name
-                        }
-                    })
+        # Simply return recent projects
+        for project in recent_projects[:limit]:
+            suggestions.append({
+                "id": project.id,
+                "name": project.name,
+                "description": project.description,
+                "match_score": 75,  # Static score for recent projects
+                "skills": [{"id": skill.id, "name": skill.name} for skill in project.skills],
+                "owner": {
+                    "id": project.owner.id,
+                    "username": project.owner.username,
+                    "full_name": project.owner.full_name
+                }
+            })
         
         return jsonify(suggestions), 200
         
     except Exception as e:
-        logger.error(f"Failed to get project suggestions: {str(e)}")
+        logger.error(f"Failed to get recent projects: {str(e)}")
         return jsonify({"error": "Failed to get suggestions"}), 500
     finally:
         session.close()
