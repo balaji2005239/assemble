@@ -10,16 +10,12 @@ from flask_cors import CORS
 from flask_socketio import SocketIO
 from datetime import timedelta
 import os
-from dotenv import load_dotenv
 from database import init_db, Session
 from auth import auth_bp
 from projects import projects_bp
 from notifications import notifications_bp
 from hackathons import hackathon_bp
 from chat import chat_bp
-
-# Load environment variables
-load_dotenv()
 
 app = Flask(
     __name__,

@@ -4,7 +4,6 @@ Flask-CORS==4.0.0
 Flask-SocketIO==5.3.6
 SQLAlchemy==2.0.23
 Werkzeug==2.3.7
-psycopg2-binary==2.9.9
 requests==2.31.0
 python-dotenv==1.0.0
 pytz==2023.3
