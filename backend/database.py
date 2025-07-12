@@ -8,11 +8,20 @@ import logging
 logger = logging.getLogger(__name__)
 
 # Database setup
-DATABASE_URL = os.getenv('DATABASE_URL', 'sqlite:///assemble.db')
+DATABASE_URL = os.getenv('DATABASE_URL', 'postgresql://postgres:password@localhost:5432/assemble')
 logger.info(f"Database URL: {DATABASE_URL}")
 
 try:
-    engine = create_engine(DATABASE_URL, echo=False)
+    # Handle both postgres:// and postgresql:// schemes for compatibility
+    if DATABASE_URL.startswith('postgres://'):
+        DATABASE_URL = DATABASE_URL.replace('postgres://', 'postgresql://', 1)
+    
+    engine = create_engine(
+        DATABASE_URL, 
+        echo=False,
+        pool_pre_ping=True,  # Verify connections before use
+        pool_recycle=300     # Recycle connections every 5 minutes
+    )
     logger.info("Database engine created successfully")
 except Exception as e:
     logger.error(f"Failed to create database engine: {str(e)}")
@@ -80,7 +89,7 @@ hackathon_roles = Table(
 class User(Base):
     __tablename__ = 'users'
     
-    id = Column(Integer, primary_key=True)
+    id = Column(Integer, primary_key=True, autoincrement=True)
     username = Column(String(80), unique=True, nullable=False)
     email = Column(String(120), unique=True, nullable=False)
     password = Column(String(255), nullable=True)
@@ -121,7 +130,7 @@ class User(Base):
 class Project(Base):
     __tablename__ = 'projects'
     
-    id = Column(Integer, primary_key=True)
+    id = Column(Integer, primary_key=True, autoincrement=True)
     name = Column(String(100), nullable=False)
     description = Column(Text, nullable=True)
     github_url = Column(String(255), nullable=True)
@@ -143,7 +152,7 @@ class Project(Base):
 class Skill(Base):
     __tablename__ = 'skills'
     
-    id = Column(Integer, primary_key=True)
+    id = Column(Integer, primary_key=True, autoincrement=True)
     name = Column(String(50), unique=True, nullable=False)
     category = Column(String(50), nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(IST))
@@ -156,7 +165,7 @@ class Skill(Base):
 class Role(Base):
     __tablename__ = 'roles'
     
-    id = Column(Integer, primary_key=True)
+    id = Column(Integer, primary_key=True, autoincrement=True)
     name = Column(String(50), unique=True, nullable=False)
     description = Column(Text, nullable=True)
     category = Column(String(50), nullable=True)
@@ -170,7 +179,7 @@ class Role(Base):
 class ProjectApplication(Base):
     __tablename__ = 'project_applications'
     
-    id = Column(Integer, primary_key=True)
+    id = Column(Integer, primary_key=True, autoincrement=True)
     project_id = Column(Integer, ForeignKey('projects.id'), nullable=False)
     user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
     message = Column(Text, nullable=True)
@@ -184,7 +193,7 @@ class ProjectApplication(Base):
 class Notification(Base):
     __tablename__ = 'notifications'
     
-    id = Column(Integer, primary_key=True)
+    id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
     title = Column(String(100), nullable=False)
     content = Column(Text, nullable=False)
@@ -198,7 +207,7 @@ class Notification(Base):
 class HackathonPost(Base):
     __tablename__ = 'hackathon_posts'
     
-    id = Column(Integer, primary_key=True)
+    id = Column(Integer, primary_key=True, autoincrement=True)
     title = Column(String(100), nullable=False)
     description = Column(Text, nullable=True)
     hackathon_name = Column(String(100), nullable=False)
@@ -218,7 +227,7 @@ class HackathonPost(Base):
 class HackathonApplication(Base):
     __tablename__ = 'hackathon_applications'
     
-    id = Column(Integer, primary_key=True)
+    id = Column(Integer, primary_key=True, autoincrement=True)
     hackathon_id = Column(Integer, ForeignKey('hackathon_posts.id'), nullable=False)
     user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
     message = Column(Text, nullable=True)
@@ -232,7 +241,7 @@ class HackathonApplication(Base):
 class Message(Base):
     __tablename__ = 'messages'
     
-    id = Column(Integer, primary_key=True)
+    id = Column(Integer, primary_key=True, autoincrement=True)
     sender_id = Column(Integer, ForeignKey('users.id'), nullable=False)
     receiver_id = Column(Integer, ForeignKey('users.id'), nullable=False)
     content = Column(Text, nullable=False)
@@ -246,7 +255,7 @@ class Message(Base):
 class PortfolioItem(Base):
     __tablename__ = 'portfolio_items'
     
-    id = Column(Integer, primary_key=True)
+    id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
     title = Column(String(100), nullable=False)
     description = Column(Text, nullable=True)
@@ -377,7 +386,7 @@ def init_db():
 class ActivityLog(Base):
     __tablename__ = 'activity_logs'
     
-    id = Column(Integer, primary_key=True)
+    id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
     action_type = Column(String(50), nullable=False)  # created_project, applied_to_project, etc.
     action_description = Column(String(255), nullable=False)
@@ -390,7 +399,7 @@ class ActivityLog(Base):
 class ProjectMilestone(Base):
     __tablename__ = 'project_milestones'
     
-    id = Column(Integer, primary_key=True)
+    id = Column(Integer, primary_key=True, autoincrement=True)
     project_id = Column(Integer, ForeignKey('projects.id'), nullable=False)
     title = Column(String(200), nullable=False)
     description = Column(Text, nullable=True)
